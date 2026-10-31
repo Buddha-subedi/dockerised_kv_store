@@ -1,0 +1,142 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261031025431
+Username: ADMINISTRATOR\User
+RunAs User: ADMINISTRATOR\User
+Configuration Name: 
+Machine: ADMINISTRATOR (Microsoft Windows NT 10.0.19045.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 6944
+PSVersion: 5.1.19041.6456
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
+BuildVersion: 10.0.19041.6456
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\User\Desktop\PowerShell_History.txt
+PS C:\Users\User\dockerised_kv_store-main> Stop-Transcript
+**********************
+Windows PowerShell transcript end
+End time: 20261031025518
+**********************
+**********************
+Windows PowerShell transcript start
+Start time: 20261031025722
+Username: ADMINISTRATOR\User
+RunAs User: ADMINISTRATOR\User
+Configuration Name: 
+Machine: ADMINISTRATOR (Microsoft Windows NT 10.0.19045.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 13392
+PSVersion: 5.1.19041.6456
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
+BuildVersion: 10.0.19041.6456
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\User\Desktop\PowerShell_History.txt
+PS C:\Users\User> cd "C:\Users\User\dockerised_kv_store-main"
+PS C:\Users\User\dockerised_kv_store-main> docker build -t key-value-store .
+[+] Building 2.4s (12/12) FINISHED                                                                 docker:desktop-linux
+ => [internal] load build definition from Dockerfile                                                               0.1s
+ => => transferring dockerfile: 288B                                                                               0.0s
+ => [internal] load metadata for docker.io/library/python:3.11-alpine                                              0.9s
+ => [auth] library/python:pull token for registry-1.docker.io                                                      0.0s
+ => [internal] load .dockerignore                                                                                  0.1s
+ => => transferring context: 2B                                                                                    0.0s
+ => [1/6] FROM docker.io/library/python:3.11-alpine@sha256:09d17d5e4c16d0a7a1eea690bcb7c6ab8616b211f8421e429e97c1  0.1s
+ => => resolve docker.io/library/python:3.11-alpine@sha256:09d17d5e4c16d0a7a1eea690bcb7c6ab8616b211f8421e429e97c1  0.1s
+ => [internal] load build context                                                                                  0.1s
+ => => transferring context: 298B                                                                                  0.0s
+ => CACHED [2/6] WORKDIR /app                                                                                      0.0s
+ => CACHED [3/6] COPY requirements.txt .                                                                           0.0s
+ => CACHED [4/6] RUN pip install --no-cache-dir -r requirements.txt                                                0.0s
+ => CACHED [5/6] COPY . .                                                                                          0.0s
+ => CACHED [6/6] RUN mkdir -p /data                                                                                0.0s
+ => exporting to image                                                                                             0.6s
+ => => exporting layers                                                                                            0.0s
+ => => exporting manifest sha256:1bca728bba95e64c8dd71b1f76d8f33bf67d80eab8570ab620c5de6492b5e0df                  0.0s
+ => => exporting config sha256:0f15eef54856c334cbc2b20793c4e00b69762f6f91b8356f863d3f50fb7f76e2                    0.0s
+ => => exporting attestation manifest sha256:74aebd1e4841634d19fbc75833231a6c050b22d97d6b4172142376d2d0812ec8      0.3s
+ => => exporting manifest list sha256:fe1f86c8fb2812d7c9083613e15f05370c0a27642eca9ebe6a7f027c9ed23a2a             0.1s
+ => => naming to docker.io/library/key-value-store:latest                                                          0.0s
+ => => unpacking to docker.io/library/key-value-store:latest                                                       0.0s
+PS C:\Users\User\dockerised_kv_store-main> docker run -d --name key-value-store -p 127.0.0.1:8080:8080 -v kv-data:/data key-value-store
+docker: Error response from daemon: Conflict. The container name "/key-value-store" is already in use by container "c3c6
+c9dd08a4a2f8940d99e939655aafb4998a15bf3db093850a4a4fcb0cc84b". You have to remove (or rename) that container to be able
+to reuse that name.
+
+Run 'docker run --help' for more information
+
+What's next:
+    Debug this container error with Gordon → docker ai "help me fix this container error"
+PS C:\Users\User\dockerised_kv_store-main> docker ps
+CONTAINER ID   IMAGE          COMMAND              CREATED         STATUS         PORTS                      NAMES
+c3c6c9dd08a4   2c824c66f675   "python server.py"   6 minutes ago   Up 6 minutes   127.0.0.1:8080->8080/tcp   key-value-s
+tore
+PS C:\Users\User\dockerised_kv_store-main> Invoke-RestMethod -Method Put -Uri 'http://localhost:8080/greeting' -ContentType 'application/json' -Body '{"value":"Hello from Docker"}'
+
+key      value
+---      -----
+greeting Hello from Docker
+
+
+PS C:\Users\User\dockerised_kv_store-main> Invoke-RestMethod -Method Get -Uri 'http://localhost:8080/greeting'
+
+key      value
+---      -----
+greeting Hello from Docker
+
+
+PS C:\Users\User\dockerised_kv_store-main> Invoke-RestMethod -Method Delete -Uri 'http://localhost:8080/greeting'
+
+key      message
+---      -------
+greeting Deleted
+
+
+PS C:\Users\User\dockerised_kv_store-main> python --version
+Python 3.11.9
+PS C:\Users\User\dockerised_kv_store-main> python test_server.py       # API operations, updates, validation, 404 responses
+PASS: PUT, GET, UPDATE, DEL, validation and missing-key handling
+PS C:\Users\User\dockerised_kv_store-main> python test_concurrency.py  # Concurrent writes and deletes
+PASS: 60 concurrent PUTs and 30 concurrent DELs on one key
+PS C:\Users\User\dockerised_kv_store-main> python demo.py              # Interactive request demonstration
+PUT: HTTP 200 {'key': 'demo_student', 'value': 'first_value'}
+GET: HTTP 200 {'key': 'demo_student', 'value': 'first_value'}
+PUT update: HTTP 200 {'key': 'demo_student', 'value': 'updated_value'}
+GET updated: HTTP 200 {'key': 'demo_student', 'value': 'updated_value'}
+DEL: HTTP 200 {'key': 'demo_student', 'message': 'Deleted'}
+GET missing: HTTP 404 {'error': 'Key not found'}
+PS C:\Users\User\dockerised_kv_store-main> python kv_bench.py          # Multi-threaded PUT/GET benchmark
+Running set phase on 300 keys with 3 threads...
+  [last 3.0s] 29.9 ops/s, avg latency 99.15 ms
+  [last 3.0s] 27.6 ops/s, avg latency 108.36 ms
+  [last 3.0s] 29.5 ops/s, avg latency 101.53 ms
+Running get phase on 300 keys with 3 threads...
+
+Final Results:
+SET: ok=300 mismatch=0 error=0 time=10.24s throughput=29.3 ops/s avg=102.03 ms p99=153.39 ms
+GET: ok=300 mismatch=0 error=0 time=1.61s throughput=185.9 ops/s avg=16.10 ms p99=34.72 ms
+TOTAL: 600 successful ops in 11.86s (50.6 ops/s)
+PS C:\Users\User\dockerised_kv_store-main> docker stop key-value-store
+key-value-store
+PS C:\Users\User\dockerised_kv_store-main> docker start key-value-store
+key-value-store
+PS C:\Users\User\dockerised_kv_store-main> docker ps
+CONTAINER ID   IMAGE          COMMAND              CREATED          STATUS          PORTS                      NAMES
+c3c6c9dd08a4   2c824c66f675   "python server.py"   11 minutes ago   Up 16 seconds   127.0.0.1:8080->8080/tcp   key-value
+-store
+PS C:\Users\User\dockerised_kv_store-main> docker rm -f key-value-store
+key-value-store
+PS C:\Users\User\dockerised_kv_store-main> Stop-Transcript
+**********************
+Windows PowerShell transcript end
+End time: 20261031030600
+**********************
