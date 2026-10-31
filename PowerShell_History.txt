@@ -1,12 +1,12 @@
 ﻿**********************
 Windows PowerShell transcript start
-Start time: 20261031025431
+Start time: 20261031152412
 Username: ADMINISTRATOR\User
 RunAs User: ADMINISTRATOR\User
 Configuration Name: 
 Machine: ADMINISTRATOR (Microsoft Windows NT 10.0.19045.0)
 Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
-Process ID: 6944
+Process ID: 10276
 PSVersion: 5.1.19041.6456
 PSEdition: Desktop
 PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
@@ -16,37 +16,550 @@ WSManStackVersion: 3.0
 PSRemotingProtocolVersion: 2.3
 SerializationVersion: 1.1.0.1
 **********************
-Transcript started, output file is C:\Users\User\Desktop\PowerShell_History.txt
-PS C:\Users\User\dockerised_kv_store-main> Stop-Transcript
-**********************
-Windows PowerShell transcript end
-End time: 20261031025518
-**********************
-**********************
-Windows PowerShell transcript start
-Start time: 20261031025722
-Username: ADMINISTRATOR\User
-RunAs User: ADMINISTRATOR\User
-Configuration Name: 
-Machine: ADMINISTRATOR (Microsoft Windows NT 10.0.19045.0)
-Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
-Process ID: 13392
-PSVersion: 5.1.19041.6456
-PSEdition: Desktop
-PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
-BuildVersion: 10.0.19041.6456
-CLRVersion: 4.0.30319.42000
-WSManStackVersion: 3.0
-PSRemotingProtocolVersion: 2.3
-SerializationVersion: 1.1.0.1
-**********************
-Transcript started, output file is C:\Users\User\Desktop\PowerShell_History.txt
-PS C:\Users\User> cd "C:\Users\User\dockerised_kv_store-main"
-PS C:\Users\User\dockerised_kv_store-main> docker build -t key-value-store .
-[+] Building 2.4s (12/12) FINISHED                                                                 docker:desktop-linux
- => [internal] load build definition from Dockerfile                                                               0.1s
- => => transferring dockerfile: 288B                                                                               0.0s
- => [internal] load metadata for docker.io/library/python:3.11-alpine                                              0.9s
+Transcript started, output file is C:\Users\User\Desktop\Docker_Assignment2_Final_History.txt
+PS C:\Users\User\dockerised_kv_store-main> $Results = [ordered]@{}
+PS C:\Users\User\dockerised_kv_store-main> function Section {
+    param([string]$Name)
+    Write-Host "`n=================================================="
+    Write-Host $Name -ForegroundColor Cyan
+    Write-Host "=================================================="
+}
+PS C:\Users\User\dockerised_kv_store-main> function Run-Docker {
+    param(
+        [string]$Description,
+        [scriptblock]$Command
+    )
+
+    & $Command
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAILED: $Description"
+    }
+
+    Write-Host "PASS: $Description" -ForegroundColor Green
+}
+PS C:\Users\User\dockerised_kv_store-main> function Run-Test {
+    param([string]$File)
+
+    if (-not (Test-Path $File)) {
+        throw "Missing test file: $File"
+    }
+
+    python -u $File
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAILED: $File"
+    }
+
+    Write-Host "PASS: $File" -ForegroundColor Green
+}
+PS C:\Users\User\dockerised_kv_store-main> function Wait-ForServer {
+
+    Write-Host "Waiting for Flask server..."
+
+    for ($i = 1; $i -le 30; $i++) {
+
+        try {
+            # A 404 on this deliberately nonexistent key
+            # also proves the API is responding.
+            Invoke-RestMethod `
+                -Method Get `
+                -Uri "$BaseURL/assignment_readiness_probe" `
+                -TimeoutSec 3 `
+                -ErrorAction Stop | Out-Null
+
+            Write-Host "PASS: Server ready" -ForegroundColor Green
+            return
+
+        } catch {
+
+            $Response = $_.Exception.Response
+
+            if ($null -ne $Response) {
+                $StatusCode = [int]$Response.StatusCode
+
+                if ($StatusCode -eq 404) {
+                    Write-Host "PASS: Server ready (HTTP 404 expected)" -ForegroundColor Green
+                    return
+                }
+            }
+
+            Write-Host "Waiting... attempt $i"
+            Start-Sleep -Seconds 2
+        }
+    }
+
+    throw "Server failed to become ready"
+}
+PS C:\Users\User\dockerised_kv_store-main> function Verify-Persistence {
+    param([string]$Stage)
+
+    $Response = Invoke-RestMethod `
+        -Method Get `
+        -Uri $PersistenceURL `
+        -ErrorAction Stop
+
+    $Response | Format-List
+
+    if ($Response.value -ne $ExpectedValue) {
+        throw "Persistence verification failed: $Stage"
+    }
+
+    Write-Host "PASS: $Stage" -ForegroundColor Green
+}
+PS C:\Users\User\dockerised_kv_store-main> try {
+
+    # ========================================================
+    # 1. DOCKERFILE
+    # ========================================================
+
+    Section "CHECKLIST 1 - DOCKERFILE"
+
+    Get-Content .\Dockerfile
+
+    $DockerfileText = Get-Content .\Dockerfile -Raw
+
+    if ($DockerfileText -notmatch '(?m)^\s*FROM\s+python:.*alpine') {
+        throw "Alpine Python base image missing"
+    }
+
+    $Results["1. Dockerfile Alpine"] = "PASS"
+
+    # ========================================================
+    # 2. APPLICATION FILES
+    # ========================================================
+
+    Section "CHECKLIST 2 - APPLICATION FILES"
+
+    Get-ChildItem
+
+    foreach ($File in @("server.py", "requirements.txt")) {
+        if (-not (Test-Path $File)) {
+            throw "Missing file: $File"
+        }
+    }
+
+    Get-Content .\requirements.txt
+
+    $Results["2. Application and dependencies"] = "PASS"
+
+    # ========================================================
+    # 3. PORT CONFIGURATION
+    # ========================================================
+
+    Section "CHECKLIST 3 - PORT CONFIGURATION"
+
+    if ($DockerfileText -notmatch 'EXPOSE\s+8080') {
+        throw "EXPOSE 8080 missing"
+    }
+
+    Write-Host "PASS: EXPOSE 8080" -ForegroundColor Green
+    $Results["3. Port configuration"] = "PASS"
+
+    # ========================================================
+    # 4. AUTOMATIC STARTUP
+    # ========================================================
+
+    Section "CHECKLIST 4 - AUTOMATIC STARTUP"
+
+    if ($DockerfileText -notmatch 'CMD.*server.py') {
+        throw "Startup command not found"
+    }
+
+    Write-Host "PASS: Startup command" -ForegroundColor Green
+    $Results["4. Automatic startup"] = "PASS"
+
+    # ========================================================
+    # 5. POWERSHELL ENVIRONMENT
+    # ========================================================
+
+    Section "CHECKLIST 5 - POWERSHELL ENVIRONMENT"
+
+    $PSVersionTable
+
+    Run-Docker "Docker version" {
+        docker --version
+    }
+
+    Run-Docker "Docker engine" {
+        docker info
+    }
+
+    $Results["5. PowerShell environment"] = "PASS"
+
+    # ========================================================
+    # 6. BUILD AND API TESTS
+    # ========================================================
+
+    Section "CHECKLIST 6 - BUILD DOCKER IMAGE"
+
+    Run-Docker "Docker build" {
+        docker build -t key-value-store .
+    }
+
+    # Remove old container, preserve volume.
+    $Existing = docker ps -a -q --filter "name=^/key-value-store$"
+
+    if ($Existing) {
+        Run-Docker "Remove previous container" {
+            docker rm -f key-value-store
+        }
+    }
+
+    Section "START CONTAINER"
+
+    Run-Docker "Docker run" {
+        docker run -d `
+            --name key-value-store `
+            -p 127.0.0.1:8080:8080 `
+            -v kv-data:/data `
+            key-value-store
+    }
+
+    Wait-ForServer
+
+    docker ps
+    docker logs key-value-store
+
+    Section "ORIGINAL API TESTS"
+
+    Invoke-RestMethod `
+        -Method Put `
+        -Uri "$BaseURL/greeting" `
+        -ContentType "application/json" `
+        -Body '{"value":"Hello from Docker"}'
+
+    Invoke-RestMethod `
+        -Method Get `
+        -Uri "$BaseURL/greeting"
+
+    Invoke-RestMethod `
+        -Method Delete `
+        -Uri "$BaseURL/greeting"
+
+    Run-Test "test_server.py"
+
+    $Results["6. Docker build and API tests"] = "PASS"
+
+    # ========================================================
+    # 7. CONCURRENCY AND BENCHMARK
+    # ========================================================
+
+    Section "CHECKLIST 7 - CONCURRENCY TEST"
+
+    Run-Test "test_concurrency.py"
+
+    Section "DEMO"
+
+    Run-Test "demo.py"
+
+    Section "BENCHMARK"
+
+    Run-Test "kv_bench.py"
+
+    $Results["7. Concurrency and benchmark"] = "PASS"
+
+    # ========================================================
+    # 8. PERSISTENCE TEST BEFORE RESTART
+    # ========================================================
+
+    Section "CREATE PERSISTENCE TEST KEY"
+
+    Invoke-RestMethod `
+        -Method Put `
+        -Uri $PersistenceURL `
+        -ContentType "application/json" `
+        -Body '{"value":"PersistenceVerified2026"}'
+
+    Verify-Persistence "Initial key verification"
+
+    # ========================================================
+    # 9. STOP AND RESTART
+    # ========================================================
+
+    Section "CHECKLIST 9 - RESTART PERSISTENCE"
+
+    Run-Docker "Stop container" {
+        docker stop key-value-store
+    }
+
+    Run-Docker "Start container" {
+        docker start key-value-store
+    }
+
+    Wait-ForServer
+
+    Verify-Persistence "Data survived container restart"
+
+    # ========================================================
+    # 10. REMOVE AND RECREATE CONTAINER
+    # ========================================================
+
+    Section "CHECKLIST 8 - FRESH CONTAINER RUN"
+
+    Run-Docker "Remove container" {
+        docker rm -f key-value-store
+    }
+
+    Run-Docker "Recreate container" {
+        docker run -d `
+            --name key-value-store `
+            -p 127.0.0.1:8080:8080 `
+            -v kv-data:/data `
+            key-value-store
+    }
+
+    Wait-ForServer
+
+    $Results["8. Fresh container run"] = "PASS"
+
+    Section "CHECKLIST 9 - RECREATION PERSISTENCE"
+
+    Verify-Persistence "Data survived container recreation"
+
+    $Results["9. Persistence verification"] = "PASS"
+
+    # ========================================================
+    # FINAL STATUS
+    # ========================================================
+
+    Section "FINAL DOCKER STATUS"
+
+    docker ps
+    docker volume ls
+    docker volume inspect kv-data
+    docker logs key-value-store
+
+    Section "FINAL ASSIGNMENT RESULTS"
+
+    foreach ($Result in $Results.GetEnumerator()) {
+        Write-Host "$($Result.Key): $($Result.Value)" -ForegroundColor Green
+    }
+
+    Write-Host "`nALL 9 CHECKLIST ITEMS VERIFIED" -ForegroundColor Green
+
+} catch {
+
+    Write-Host "`nVERIFICATION FAILED" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+
+    Write-Host "Inspect Docker logs:" -ForegroundColor Yellow
+    docker logs key-value-store
+
+} finally {
+
+    Write-Host "`nTranscript saved to:"
+    Write-Host $TranscriptFile
+
+    Stop-Transcript
+}
+
+==================================================
+CHECKLIST 1 - DOCKERFILE
+==================================================
+FROM python:3.11-alpine
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+ENV KV_HOST=0.0.0.0 \
+    KV_PORT=8080 \
+    KV_DB=/data/kv_store.db
+RUN mkdir -p /data
+EXPOSE 8080
+CMD ["python", "server.py"]
+
+==================================================
+CHECKLIST 2 - APPLICATION FILES
+==================================================
+
+
+    Directory: C:\Users\User\dockerised_kv_store-main
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+------        10/28/2026  10:20 PM            644 demo.py
+------        10/28/2026  10:20 PM            249 Dockerfile
+------        10/28/2026  10:20 PM           4571 kv_bench.py
+------        10/28/2026  10:20 PM           4584 kv_bench_instructor.py
+------        10/28/2026  10:20 PM           9768 README.md
+------        10/28/2026  10:20 PM             32 requirements.txt
+------        10/28/2026  10:20 PM           3240 server.py
+------        10/28/2026  10:20 PM            901 test_concurrency.py
+------        10/28/2026  10:20 PM            900 test_server.py
+Flask>=3.0,<4
+requests>=2.31,<3
+
+==================================================
+CHECKLIST 3 - PORT CONFIGURATION
+==================================================
+PASS: EXPOSE 8080
+
+==================================================
+CHECKLIST 4 - AUTOMATIC STARTUP
+==================================================
+PASS: Startup command
+
+==================================================
+CHECKLIST 5 - POWERSHELL ENVIRONMENT
+==================================================
+
+Key   : PSVersion
+Value : 5.1.19041.6456
+Name  : PSVersion
+
+
+Key   : PSEdition
+Value : Desktop
+Name  : PSEdition
+
+
+Key   : PSCompatibleVersions
+Value : {1.0, 2.0, 3.0, 4.0...}
+Name  : PSCompatibleVersions
+
+
+Key   : BuildVersion
+Value : 10.0.19041.6456
+Name  : BuildVersion
+
+
+Key   : CLRVersion
+Value : 4.0.30319.42000
+Name  : CLRVersion
+
+
+Key   : WSManStackVersion
+Value : 3.0
+Name  : WSManStackVersion
+
+
+Key   : PSRemotingProtocolVersion
+Value : 2.3
+Name  : PSRemotingProtocolVersion
+
+
+Key   : SerializationVersion
+Value : 1.1.0.1
+Name  : SerializationVersion
+
+Docker version 29.9.2, build a82e528
+PASS: Docker version
+Client:
+ Version:    29.9.2
+ Context:    desktop-linux
+ Debug Mode: false
+ Plugins:
+  agent: Docker AI Agent Runner (Docker Inc.)
+    Version:  v1.152.0
+    Path:     C:\Users\User\.docker\cli-plugins\docker-agent.exe
+  ai: Docker AI Agent - Ask Gordon (Docker Inc.)
+    Version:  v1.33.0
+    Path:     C:\Users\User\.docker\cli-plugins\docker-ai.exe
+  buildx: Docker Buildx (Docker Inc.)
+    Version:  v0.38.1
+    Path:     C:\Users\User\.docker\cli-plugins\docker-buildx.exe
+  compose: Docker Compose (Docker Inc.)
+    Version:  v5.6.1
+    Path:     C:\Users\User\.docker\cli-plugins\docker-compose.exe
+  debug: Get a shell into any image or container (Docker Inc.)
+    Version:  0.49.0
+    Path:     C:\Users\User\.docker\cli-plugins\docker-debug.exe
+  desktop: Docker Desktop commands (Docker Inc.)
+    Version:  4.97.0
+    Path:     C:\Users\User\.docker\cli-plugins\docker-desktop.exe
+  dhi: CLI for managing Docker Hardened Images (Docker Inc.)
+    Version:  v0.0.9
+    Path:     C:\Users\User\.docker\cli-plugins\docker-dhi.exe
+  extension: Manages Docker extensions (Docker Inc.)
+    Version:  v0.2.32
+    Path:     C:\Users\User\.docker\cli-plugins\docker-extension.exe
+  init: Creates Docker-related starter files for your project (Docker Inc.)
+    Version:  v1.4.1
+    Path:     C:\Users\User\.docker\cli-plugins\docker-init.exe
+  mcp: Docker MCP Plugin (Docker Inc.)
+    Version:  v0.44.2
+    Path:     C:\Users\User\.docker\cli-plugins\docker-mcp.exe
+  model: Docker Model Runner (Docker Inc.)
+    Version:  v1.2.9
+    Path:     C:\Users\User\.docker\cli-plugins\docker-model.exe
+  offload: Docker Offload (Docker Inc.)
+    Version:  v0.7.21
+    Path:     C:\Users\User\.docker\cli-plugins\docker-offload.exe
+  pass: Docker Pass Secrets Manager Plugin (beta) (Docker Inc.)
+    Version:  v0.3.2
+    Path:     C:\Users\User\.docker\cli-plugins\docker-pass.exe
+  sandbox: "docker sandbox" is deprecated, use Docker Sandboxes instead (Docker Inc.)
+    Version:  v0.13.0
+    Path:     C:\Users\User\.docker\cli-plugins\docker-sandbox.exe
+  scout: Docker Scout (Docker Inc.)
+    Version:  v1.27.0
+    Path:     C:\Users\User\.docker\cli-plugins\docker-scout.exe
+
+Server:
+ Containers: 1
+  Running: 1
+  Paused: 0
+  Stopped: 0
+ Images: 1
+ Server Version: 29.9.2
+ Storage Driver: overlayfs
+  driver-type: io.containerd.snapshotter.v1
+ Logging Driver: local
+ Cgroup Driver: cgroupfs
+ Cgroup Version: 2
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+ CDI spec directories:
+  /etc/cdi
+  /var/run/cdi
+ Discovered Devices:
+  cdi: docker.com/gpu=webgpu
+ Swarm: inactive
+ Runtimes: io.containerd.runc.v2 nvidia runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version: b7a25261e029d68978bbf290df0a62fc819b3c51
+ runc version: v1.5.2-0-g29dd3dc2
+ init version: de40ad0
+ Security Options:
+  seccomp
+   Profile: builtin
+  cgroupns
+ Kernel Version: 6.18.54.1-microsoft-standard-WSL2
+ Operating System: Docker Desktop
+ OSType: linux
+ Architecture: x86_64
+ CPUs: 4
+ Total Memory: 3.76GiB
+ Name: docker-desktop
+ ID: 145f536c-82f9-4ded-8884-b495b5bd0725
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ HTTP Proxy: http.docker.internal:3128
+ HTTPS Proxy: http.docker.internal:3128
+ No Proxy: hubproxy.docker.internal
+ Labels:
+  com.docker.desktop.address=npipe://\\.\pipe\docker_cli
+ Experimental: false
+ Insecure Registries:
+  hubproxy.docker.internal:5555
+  127.0.0.0/8
+  ::1/128
+ Live Restore Enabled: false
+ Firewall Backend: iptables
+PASS: Docker engine
+
+==================================================
+CHECKLIST 6 - BUILD DOCKER IMAGE
+==================================================
+[+] Building 2.8s (12/12) FINISHED                                                                 docker:desktop-linux
+ => [internal] load build definition from Dockerfile                                                               0.2s
+ => => transferring dockerfile: 288B                                                                               0.1s
+ => [internal] load metadata for docker.io/library/python:3.11-alpine                                              1.3s
  => [auth] library/python:pull token for registry-1.docker.io                                                      0.0s
  => [internal] load .dockerignore                                                                                  0.1s
  => => transferring context: 2B                                                                                    0.0s
@@ -59,84 +572,186 @@ PS C:\Users\User\dockerised_kv_store-main> docker build -t key-value-store .
  => CACHED [4/6] RUN pip install --no-cache-dir -r requirements.txt                                                0.0s
  => CACHED [5/6] COPY . .                                                                                          0.0s
  => CACHED [6/6] RUN mkdir -p /data                                                                                0.0s
- => exporting to image                                                                                             0.6s
+ => exporting to image                                                                                             0.4s
  => => exporting layers                                                                                            0.0s
  => => exporting manifest sha256:1bca728bba95e64c8dd71b1f76d8f33bf67d80eab8570ab620c5de6492b5e0df                  0.0s
  => => exporting config sha256:0f15eef54856c334cbc2b20793c4e00b69762f6f91b8356f863d3f50fb7f76e2                    0.0s
- => => exporting attestation manifest sha256:74aebd1e4841634d19fbc75833231a6c050b22d97d6b4172142376d2d0812ec8      0.3s
- => => exporting manifest list sha256:fe1f86c8fb2812d7c9083613e15f05370c0a27642eca9ebe6a7f027c9ed23a2a             0.1s
+ => => exporting attestation manifest sha256:33d7028d2a65159039e88905aff154fae687b2939b1961a5c7dddc3a306f00f9      0.1s
+ => => exporting manifest list sha256:0c31bd0bb613ba088bca3fbb86ec88ed7a1e02b8486d09770ccdc5df164de106             0.1s
  => => naming to docker.io/library/key-value-store:latest                                                          0.0s
  => => unpacking to docker.io/library/key-value-store:latest                                                       0.0s
-PS C:\Users\User\dockerised_kv_store-main> docker run -d --name key-value-store -p 127.0.0.1:8080:8080 -v kv-data:/data key-value-store
-docker: Error response from daemon: Conflict. The container name "/key-value-store" is already in use by container "c3c6
-c9dd08a4a2f8940d99e939655aafb4998a15bf3db093850a4a4fcb0cc84b". You have to remove (or rename) that container to be able
-to reuse that name.
+PASS: Docker build
+key-value-store
+PASS: Remove previous container
 
-Run 'docker run --help' for more information
+==================================================
+START CONTAINER
+==================================================
+e06419015a7d8bbd413d028f9f3349c25d6cc6fca8f7186e5a8f516953c86492
+PASS: Docker run
+Waiting for Flask server...
+PS C:\Users\User\dockerised_kv_store-main> TerminatingError(Invoke-RestMethod): "{"error":"Key not found"}
+"
+PASS: Server ready (HTTP 404 expected)
+CONTAINER ID   IMAGE             COMMAND              CREATED         STATUS         PORTS                      NAMES
+e06419015a7d   key-value-store   "python server.py"   3 seconds ago   Up 3 seconds   127.0.0.1:8080->8080/tcp   key-valu
+e-store
+ * Serving Flask app 'server'
+ * Debug mode: off
 
-What's next:
-    Debug this container error with Gordon → docker ai "help me fix this container error"
-PS C:\Users\User\dockerised_kv_store-main> docker ps
-CONTAINER ID   IMAGE          COMMAND              CREATED         STATUS         PORTS                      NAMES
-c3c6c9dd08a4   2c824c66f675   "python server.py"   6 minutes ago   Up 6 minutes   127.0.0.1:8080->8080/tcp   key-value-s
-tore
-PS C:\Users\User\dockerised_kv_store-main> Invoke-RestMethod -Method Put -Uri 'http://localhost:8080/greeting' -ContentType 'application/json' -Body '{"value":"Hello from Docker"}'
+==================================================
+ORIGINAL API TESTS
+==================================================
 
-key      value
----      -----
-greeting Hello from Docker
-
-
-PS C:\Users\User\dockerised_kv_store-main> Invoke-RestMethod -Method Get -Uri 'http://localhost:8080/greeting'
-
-key      value
----      -----
-greeting Hello from Docker
-
-
-PS C:\Users\User\dockerised_kv_store-main> Invoke-RestMethod -Method Delete -Uri 'http://localhost:8080/greeting'
-
-key      message
----      -------
-greeting Deleted
+key   : greeting
+value : Hello from Docker
 
 
-PS C:\Users\User\dockerised_kv_store-main> python --version
-Python 3.11.9
-PS C:\Users\User\dockerised_kv_store-main> python test_server.py       # API operations, updates, validation, 404 responses
+key   : greeting
+value : Hello from Docker
+
+
+key     : greeting
+message : Deleted
+
 PASS: PUT, GET, UPDATE, DEL, validation and missing-key handling
-PS C:\Users\User\dockerised_kv_store-main> python test_concurrency.py  # Concurrent writes and deletes
+PASS: test_server.py
+
+==================================================
+CHECKLIST 7 - CONCURRENCY TEST
+==================================================
 PASS: 60 concurrent PUTs and 30 concurrent DELs on one key
-PS C:\Users\User\dockerised_kv_store-main> python demo.py              # Interactive request demonstration
+PASS: test_concurrency.py
+
+==================================================
+DEMO
+==================================================
 PUT: HTTP 200 {'key': 'demo_student', 'value': 'first_value'}
 GET: HTTP 200 {'key': 'demo_student', 'value': 'first_value'}
 PUT update: HTTP 200 {'key': 'demo_student', 'value': 'updated_value'}
 GET updated: HTTP 200 {'key': 'demo_student', 'value': 'updated_value'}
 DEL: HTTP 200 {'key': 'demo_student', 'message': 'Deleted'}
 GET missing: HTTP 404 {'error': 'Key not found'}
-PS C:\Users\User\dockerised_kv_store-main> python kv_bench.py          # Multi-threaded PUT/GET benchmark
+PASS: demo.py
+
+==================================================
+BENCHMARK
+==================================================
 Running set phase on 300 keys with 3 threads...
-  [last 3.0s] 29.9 ops/s, avg latency 99.15 ms
-  [last 3.0s] 27.6 ops/s, avg latency 108.36 ms
-  [last 3.0s] 29.5 ops/s, avg latency 101.53 ms
 Running get phase on 300 keys with 3 threads...
 
 Final Results:
-SET: ok=300 mismatch=0 error=0 time=10.24s throughput=29.3 ops/s avg=102.03 ms p99=153.39 ms
-GET: ok=300 mismatch=0 error=0 time=1.61s throughput=185.9 ops/s avg=16.10 ms p99=34.72 ms
-TOTAL: 600 successful ops in 11.86s (50.6 ops/s)
-PS C:\Users\User\dockerised_kv_store-main> docker stop key-value-store
+SET: ok=300 mismatch=0 error=0 time=1.83s throughput=163.7 ops/s avg=18.28 ms p99=50.91 ms
+GET: ok=300 mismatch=0 error=0 time=1.71s throughput=175.3 ops/s avg=17.07 ms p99=36.86 ms
+TOTAL: 600 successful ops in 3.54s (169.3 ops/s)
+PASS: kv_bench.py
+
+==================================================
+CREATE PERSISTENCE TEST KEY
+==================================================
+
+key   : persist_check
+value : PersistenceVerified2026
+
+
+
+
+
+key   : persist_check
+value : PersistenceVerified2026
+
+
+
+PASS: Initial key verification
+
+==================================================
+CHECKLIST 9 - RESTART PERSISTENCE
+==================================================
 key-value-store
-PS C:\Users\User\dockerised_kv_store-main> docker start key-value-store
+PASS: Stop container
 key-value-store
-PS C:\Users\User\dockerised_kv_store-main> docker ps
-CONTAINER ID   IMAGE          COMMAND              CREATED          STATUS          PORTS                      NAMES
-c3c6c9dd08a4   2c824c66f675   "python server.py"   11 minutes ago   Up 16 seconds   127.0.0.1:8080->8080/tcp   key-value
--store
-PS C:\Users\User\dockerised_kv_store-main> docker rm -f key-value-store
+PASS: Start container
+Waiting for Flask server...
+PS C:\Users\User\dockerised_kv_store-main> TerminatingError(Invoke-RestMethod): "The underlying connection was closed: The connection was closed unexpectedly."
+Waiting... attempt 1
+PS C:\Users\User\dockerised_kv_store-main> TerminatingError(Invoke-RestMethod): "{"error":"Key not found"}
+"
+PASS: Server ready (HTTP 404 expected)
+
+
+key   : persist_check
+value : PersistenceVerified2026
+
+
+
+PASS: Data survived container restart
+
+==================================================
+CHECKLIST 8 - FRESH CONTAINER RUN
+==================================================
 key-value-store
-PS C:\Users\User\dockerised_kv_store-main> Stop-Transcript
+PASS: Remove container
+a3d03b0bedc0b4f7306d13e090a3657313bb9ef5063d7200369d761287070fd6
+PASS: Recreate container
+Waiting for Flask server...
+PS C:\Users\User\dockerised_kv_store-main> TerminatingError(Invoke-RestMethod): "The underlying connection was closed: The connection was closed unexpectedly."
+Waiting... attempt 1
+PS C:\Users\User\dockerised_kv_store-main> TerminatingError(Invoke-RestMethod): "{"error":"Key not found"}
+"
+PASS: Server ready (HTTP 404 expected)
+
+==================================================
+CHECKLIST 9 - RECREATION PERSISTENCE
+==================================================
+
+
+key   : persist_check
+value : PersistenceVerified2026
+
+
+
+PASS: Data survived container recreation
+
+==================================================
+FINAL DOCKER STATUS
+==================================================
+CONTAINER ID   IMAGE             COMMAND              CREATED         STATUS         PORTS                      NAMES
+a3d03b0bedc0   key-value-store   "python server.py"   3 seconds ago   Up 2 seconds   127.0.0.1:8080->8080/tcp   key-valu
+e-store
+DRIVER    VOLUME NAME
+local     kv-data
+[
+    {
+        "CreatedAt": "2026-10-31T07:44:46Z",
+        "Driver": "local",
+        "Labels": null,
+        "Mountpoint": "/var/lib/docker/volumes/kv-data/_data",
+        "Name": "kv-data",
+        "Options": null,
+        "Scope": "local"
+    }
+]
+ * Serving Flask app 'server'
+ * Debug mode: off
+
+==================================================
+FINAL ASSIGNMENT RESULTS
+==================================================
+1. Dockerfile Alpine: PASS
+2. Application and dependencies: PASS
+3. Port configuration: PASS
+4. Automatic startup: PASS
+5. PowerShell environment: PASS
+6. Docker build and API tests: PASS
+7. Concurrency and benchmark: PASS
+8. Fresh container run: PASS
+9. Persistence verification: PASS
+
+ALL 9 CHECKLIST ITEMS VERIFIED
+
+Transcript saved to:
+C:\Users\User\Desktop\Docker_Assignment2_Final_History.txt
 **********************
 Windows PowerShell transcript end
-End time: 20261031030600
+End time: 20261031152453
 **********************
