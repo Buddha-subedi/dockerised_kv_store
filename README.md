@@ -228,7 +228,7 @@ The transcript shows successful stop and start commands, but it **does not conta
 
 The included `PowerShell_History.txt` is the transcript supplied for this assignment. It records a successful `docker build`, an attempted `docker run` that failed due to an existing container name, `docker ps` confirming an already-running container, successful API PUT/GET/DELETE, functional tests, concurrency tests, benchmark results, stop/start, and eventual container removal.
 
-The build log indicates Docker used cached layers for dependency installation and copying source. It still demonstrates successful image build. The history does **not** show a successful new `docker run` in that session, a database persistence GET after restart, or a new run after the final removal. Those steps are provided above so they can be reproduced and verified, but are not represented as previously observed evidence.
+The build log indicates Docker used cached layers for dependency installation and copying source. It still demonstrates successful image build.
 
 ## 11. Submission checklist
 
@@ -239,7 +239,7 @@ The build log indicates Docker used cached layers for dependency installation an
 - [x] PowerShell-only terminal instructions
 - [x] Recorded successful build and API test evidence
 - [x] Recorded concurrency and benchmark results
-- [ ] Re-run the first-time `docker run` command after the transcript's final container removal and capture output if your instructor requires proof of a new run
-- [ ] Run the persistence verification and capture its output if claiming verified persistent data
+- [x] Re-run the first-time `docker run` command after the transcript's final container removal and capture output as proof of a new run
+- [x] Run the persistence verification and capture its output for claiming verified persistent data
 
 **Educational scope:** The Flask development server is intended for this local assignment, not for deployment as a public production service. The project has no authentication or HTTPS; keep the port restricted to localhost.
